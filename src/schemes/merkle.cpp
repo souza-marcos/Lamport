@@ -62,8 +62,8 @@ Signature sign(PrivateKey& key, const std::vector<uint8_t>& message) {
     sig.pub_seed = leaf.pub_seed;
     sig.wots_sig = wots::sign(leaf, message);
     size_t node = leaf_count + key.next_index;
-    // Heap numbering: toggling the low bit selects the sibling. Store siblings
-    // from the leaf level upward, matching the order used by verification.
+    // No vetor da árvore, inverter o último bit do índice seleciona o irmão.
+    // O caminho guarda esses irmãos da folha em direção à raiz.
     while (node > 1) {
         sig.auth_path.push_back(key.nodes[node ^ 1]);
         node /= 2;
@@ -84,7 +84,7 @@ bool verify(const PublicKey& pub, const std::vector<uint8_t>& message, const Sig
     auto value = leaf_hash(wots::recover_public(sig.pub_seed, message, sig.wots_sig));
     uint32_t index = sig.leaf_index;
     for (const auto& sibling : sig.auth_path) {
-        // An odd index is a right child: its sibling must be hashed on the left.
+        // Índice ímpar indica filho direito: o irmão deve ficar à esquerda.
         value = index & 1 ? node_hash(sibling, value) : node_hash(value, sibling);
         index >>= 1;
     }

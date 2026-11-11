@@ -56,6 +56,45 @@ for w in 4 16; do
     fi
 done
 
+# Mensagem vazia e binária, parâmetro incompatível e colisão na geração de chaves.
+for scheme in lamport wots+ merkle; do
+    args=(--scheme "$scheme")
+    case "$scheme" in
+        wots+) args+=(--w 16) ;;
+        merkle) args+=(--w 16 --height 1) ;;
+    esac
+    for kind in empty binary; do
+        dir="$tmp/edge-$scheme-$kind"
+        "$tool" keygen "${args[@]}" --out "$dir"
+        test "$(stat -c %a "$dir/private.key")" = 600
+        cp "$dir/private.key" "$dir/before.key"
+        cp "$dir/public.key" "$dir/before-public.key"
+        if "$tool" keygen "${args[@]}" --out "$dir"; then
+            echo 'chaves existentes sobrescritas' >&2
+            exit 1
+        fi
+        cmp "$dir/before.key" "$dir/private.key"
+        cmp "$dir/before-public.key" "$dir/public.key"
+        : > "$tmp/edge-message"
+        if [[ "$kind" == binary ]]; then
+            printf '\000\377\001\200' > "$tmp/edge-message"
+        fi
+        if [[ "$scheme" == wots+ ]]; then
+            if "$tool" sign --scheme wots+ --w 4 --key "$dir/private.key" \
+                --message "$tmp/edge-message" --out "$dir/wrong-w.bin"; then
+                echo 'parâmetro incompatível aceito' >&2
+                exit 1
+            fi
+            cmp "$dir/before.key" "$dir/private.key"
+            test ! -e "$dir/wrong-w.bin"
+        fi
+        "$tool" sign --scheme "$scheme" --key "$dir/private.key" \
+            --message "$tmp/edge-message" --out "$dir/signature.bin"
+        "$tool" verify --scheme "$scheme" --key "$dir/public.key" \
+            --message "$tmp/edge-message" --signature "$dir/signature.bin"
+    done
+done
+
 "$tool" keygen --scheme merkle --w 4 --height 2 --out "$tmp/merkle"
 for i in 0 1 2 3; do
     printf 'mensagem Merkle %s' "$i" > "$tmp/message.txt"

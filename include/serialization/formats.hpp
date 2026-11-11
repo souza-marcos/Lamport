@@ -8,8 +8,8 @@
 
 namespace lamport_sig::serialization {
 
-// Wire layout: docs/formatos_binarios.md. Encoders expect valid scheme objects;
-// decoders validate the record header and exact length before reading fields.
+// Formato: docs/formatos_binarios.md. A escrita recebe objetos válidos;
+// a leitura valida o cabeçalho e o tamanho antes de acessar os campos.
 using Bytes = std::vector<uint8_t>;
 constexpr size_t kMagicSize = 8;
 constexpr size_t kHashSize = 32;

@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <stdexcept>
 
 #include "common/errors.hpp"
 #include "crypto/random.hpp"
@@ -44,8 +43,8 @@ void put_u32(std::array<uint8_t, 32>& address, size_t offset, uint32_t value) {
 Hash256 chain(Hash256 value, int start, int steps,
               size_t chain_index, const Hash256& seed) {
     for (int step = start; step < start + steps; ++step) {
-        std::array<uint8_t, 32> address{}; // OTS address: layer, tree, type and OTS index are zero.
-        // Chain index and step separate hash calls; the last field selects key (0) or mask (1).
+        std::array<uint8_t, 32> address{}; // Camada, árvore, tipo e índice OTS ficam em zero nesta construção.
+        // O endereço identifica a cadeia, o passo e o uso: chave (0) ou máscara (1).
         put_u32(address, 20, static_cast<uint32_t>(chain_index));
         put_u32(address, 24, static_cast<uint32_t>(step));
         put_u32(address, 28, 0);
@@ -68,8 +67,8 @@ std::vector<uint8_t> message_digits(const Hash256& digest, uint8_t w) {
     const int bits = log_w(w);
     std::vector<uint8_t> digits;
     digits.reserve(chain_count(w));
-    // Increasing a message digit decreases this sum, so advancing chains alone
-    // cannot produce both the new message digits and its checksum.
+    // Aumentar um dígito diminui a soma. Avançar nas cadeias não basta
+    // para alterar a mensagem e ainda produzir o checksum correspondente.
     unsigned checksum = 0;
     for (uint8_t byte : digest) {
         for (int shift = 8 - bits; shift >= 0; shift -= bits) {

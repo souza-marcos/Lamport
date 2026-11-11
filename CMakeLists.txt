@@ -35,7 +35,7 @@ add_executable(lamport_sig src/cli/main.cpp)
 target_link_libraries(lamport_sig PRIVATE lamport_sig_serialization)
 
 add_executable(benchmark experiments/benchmark.cpp)
-target_link_libraries(benchmark PRIVATE lamport_sig_schemes)
+target_link_libraries(benchmark PRIVATE lamport_sig_serialization)
 
 enable_testing()
 add_executable(test_hash tests/test_hash.cpp)

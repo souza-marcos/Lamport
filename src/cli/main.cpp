@@ -82,6 +82,19 @@ void write_new(const std::string& path, const Bytes& data, mode_t mode) {
     }
 }
 
+void save_keypair(const std::string& dir, const Bytes& private_data, const Bytes& public_data) {
+    std::filesystem::create_directories(dir);
+    const auto private_path = (std::filesystem::path(dir) / "private.key").string();
+    const auto public_path = (std::filesystem::path(dir) / "public.key").string();
+    write_new(private_path, private_data, 0600);
+    try {
+        write_new(public_path, public_data, 0644);
+    } catch (...) {
+        ::unlink(private_path.c_str());
+        throw;
+    }
+}
+
 void replace_file(const std::string& path, const Bytes& data) {
     std::string pattern = path + ".tmp.XXXXXX";
     const int fd = ::mkstemp(pattern.data());
@@ -104,12 +117,12 @@ void replace_file(const std::string& path, const Bytes& data) {
     }
 }
 
-// The caller holds the key lock from before reading the key until this returns.
+// O chamador mantém o bloqueio desde a leitura da chave até o fim da gravação.
 void persist_signature(const std::string& key_path, const Bytes& private_data,
                        const std::string& output, const Bytes& signature) {
     File signature_file(output, O_WRONLY | O_CREAT | O_EXCL, 0644);
     try {
-        // Persist the consumed key (including directory fsync) before exposing signature bytes.
+        // Grava o consumo da chave antes de disponibilizar a assinatura.
         replace_file(key_path, private_data);
         write_exact(signature_file.fd, signature);
     } catch (...) {
@@ -197,23 +210,14 @@ void check_options(const std::map<std::string, std::string>& options, size_t cou
         throw UsageError("esquema ou opções incompatíveis com o comando");
 }
 
-void keygen(const std::map<std::string, std::string>& options) {
+void lamport_keygen(const std::map<std::string, std::string>& options) {
     check_options(options, 2, "lamport");
     const auto dir = require(options, "--out");
-    std::filesystem::create_directories(dir);
-    auto keys = lamport::keygen();
-    const auto private_path = (std::filesystem::path(dir) / "private.key").string();
-    const auto public_path = (std::filesystem::path(dir) / "public.key").string();
-    write_new(private_path, encode_private(keys.priv), 0600);
-    try {
-        write_new(public_path, encode_public(keys.pub), 0644);
-    } catch (...) {
-        ::unlink(private_path.c_str());
-        throw;
-    }
+    const auto keys = lamport::keygen();
+    save_keypair(dir, encode_private(keys.priv), encode_public(keys.pub));
 }
 
-void sign(const std::map<std::string, std::string>& options) {
+void lamport_sign(const std::map<std::string, std::string>& options) {
     check_options(options, 4, "lamport");
     const auto key_path = require(options, "--key");
     const auto message = read_message(require(options, "--message"));
@@ -228,7 +232,7 @@ void sign(const std::map<std::string, std::string>& options) {
     persist_signature(key_path, private_data, output, encode_signature(signature));
 }
 
-int verify(const std::map<std::string, std::string>& options) {
+int lamport_verify(const std::map<std::string, std::string>& options) {
     check_options(options, 4, "lamport");
     const auto key = decode_public(read_file(require(options, "--key"), kPublicSize));
     const auto signature = decode_signature(read_file(require(options, "--signature"), kSignatureSize));
@@ -242,17 +246,8 @@ void wots_keygen(const std::map<std::string, std::string>& options) {
     check_options(options, 3, "wots+");
     const auto w = parse_w(require(options, "--w"));
     const auto dir = require(options, "--out");
-    std::filesystem::create_directories(dir);
-    auto keys = wots::keygen(w);
-    const auto private_path = (std::filesystem::path(dir) / "private.key").string();
-    const auto public_path = (std::filesystem::path(dir) / "public.key").string();
-    write_new(private_path, encode_wots_private(keys.priv), 0600);
-    try {
-        write_new(public_path, encode_wots_public(keys.pub), 0644);
-    } catch (...) {
-        ::unlink(private_path.c_str());
-        throw;
-    }
+    const auto keys = wots::keygen(w);
+    save_keypair(dir, encode_wots_private(keys.priv), encode_wots_public(keys.pub));
 }
 
 void wots_sign(const std::map<std::string, std::string>& options) {
@@ -262,14 +257,7 @@ void wots_sign(const std::map<std::string, std::string>& options) {
     const auto output = require(options, "--out");
     File lock_file(key_path + ".lock", O_RDWR | O_CREAT, 0600);
     if (::flock(lock_file.fd, LOCK_EX) != 0) throw IoError("falha ao bloquear chave privada");
-    File key_file(key_path, O_RDONLY);
-    uint8_t header[kWotsHeaderSize]{};
-    if (::pread(key_file.fd, header, sizeof(header), 0) != sizeof(header))
-        throw FormatError("chave W-OTS+ inválida");
-    if (!std::equal(header, header + kMagicSize, "WOTPRV01"))
-        throw FormatError("chave W-OTS+ inválida");
-    if (header[kWOffset] != 4 && header[kWOffset] != 16) throw FormatError("chave W-OTS+ inválida");
-    auto private_data = read_exact(key_file.fd, kWotsPrivateBase + wots::chain_count(header[kWOffset]) * kHashSize);
+    auto private_data = read_wots_file(key_path, "WOTPRV01", kWotsPrivateBase);
     auto key = decode_wots_private(private_data);
     if (options.count("--w") && parse_w(require(options, "--w")) != key.w)
         throw UsageError("--w incompatível com a chave");
@@ -296,17 +284,8 @@ void merkle_keygen(const std::map<std::string, std::string>& options) {
     const auto w = parse_w(require(options, "--w"));
     const auto height = parse_height(require(options, "--height"));
     const auto dir = require(options, "--out");
-    std::filesystem::create_directories(dir);
-    auto keys = merkle::keygen(w, height);
-    const auto private_path = (std::filesystem::path(dir) / "private.key").string();
-    const auto public_path = (std::filesystem::path(dir) / "public.key").string();
-    write_new(private_path, encode_merkle_private(keys.priv), 0600);
-    try {
-        write_new(public_path, encode_merkle_public(keys.pub), 0644);
-    } catch (...) {
-        ::unlink(private_path.c_str());
-        throw;
-    }
+    const auto keys = merkle::keygen(w, height);
+    save_keypair(dir, encode_merkle_private(keys.priv), encode_merkle_public(keys.pub));
 }
 
 void merkle_sign(const std::map<std::string, std::string>& options) {
@@ -378,13 +357,13 @@ int main(int argc, char** argv) {
         }
         const auto options = parse_options(argc, argv);
         const auto scheme = require(options, "--scheme");
-        if (command == "keygen" && scheme == "lamport") keygen(options);
+        if (command == "keygen" && scheme == "lamport") lamport_keygen(options);
         else if (command == "keygen" && scheme == "wots+") wots_keygen(options);
         else if (command == "keygen" && scheme == "merkle") merkle_keygen(options);
-        else if (command == "sign" && scheme == "lamport") sign(options);
+        else if (command == "sign" && scheme == "lamport") lamport_sign(options);
         else if (command == "sign" && scheme == "wots+") wots_sign(options);
         else if (command == "sign" && scheme == "merkle") merkle_sign(options);
-        else if (command == "verify" && scheme == "lamport") return verify(options);
+        else if (command == "verify" && scheme == "lamport") return lamport_verify(options);
         else if (command == "verify" && scheme == "wots+") return wots_verify(options);
         else if (command == "verify" && scheme == "merkle") return merkle_verify(options);
         else throw lamport_sig::UsageError("comando desconhecido: " + command);

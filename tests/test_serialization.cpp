@@ -1,5 +1,6 @@
 #include <algorithm>
-#include <cassert>
+#include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include "common/errors.hpp"
 #include "serialization/formats.hpp"
@@ -7,7 +8,16 @@
 using namespace lamport_sig;
 using namespace serialization;
 
-// Fixed wire fixtures: literal offsets/sizes deliberately do not use production constants.
+static int failures = 0;
+#define CHECK(cond) \
+    do { \
+        if (!(cond)) { \
+            std::fprintf(stderr, "FALHOU %s:%d: %s\n", __FILE__, __LINE__, #cond); \
+            ++failures; \
+        } \
+    } while (0)
+
+// Valores fixos independentes das constantes usadas na implementação do formato.
 Bytes fixture(const char* magic, size_t size, size_t payload) {
     Bytes data(magic, magic + 8);
     data.resize(size);
@@ -18,11 +28,11 @@ Bytes fixture(const char* magic, size_t size, size_t payload) {
 void rejected(const Bytes& data, const std::function<Bytes(const Bytes&)>& roundtrip) {
     bool failed = false;
     try { roundtrip(data); } catch (const FormatError&) { failed = true; }
-    assert(failed);
+    CHECK(failed);
 }
 
 void check_record(const Bytes& data, const std::function<Bytes(const Bytes&)>& roundtrip) {
-    assert(roundtrip(data) == data);
+    CHECK(roundtrip(data) == data);
     for (size_t length : {size_t{0}, size_t{7}, size_t{8}, size_t{9}, data.size() - 1})
         rejected(Bytes(data.begin(), data.begin() + length), roundtrip);
     auto bad = data;
@@ -39,7 +49,7 @@ int main() {
     auto lamport_private = [](const Bytes& b) { return encode_private(decode_private(b)); };
     check_record(lp, lamport_private);
     const auto lk = decode_private(lp);
-    assert(lk.used && lk.sk[0][0][0] == lp[9] && lk.sk[0][1][0] == lp[41]);
+    CHECK(lk.used && lk.sk[0][0][0] == lp[9] && lk.sk[0][1][0] == lp[41]);
     lp[8] = 2;
     rejected(lp, lamport_private);
     check_record(fixture("LAMPUB01", 16392, 8),
@@ -54,7 +64,7 @@ int main() {
         auto wots_private = [](const Bytes& b) { return encode_wots_private(decode_wots_private(b)); };
         check_record(wp, wots_private);
         const auto wk = decode_wots_private(wp);
-        assert(wk.w == w && wk.used && wk.pub_seed[0] == wp[10] && wk.sk[0][0] == wp[42]);
+        CHECK(wk.w == w && wk.used && wk.pub_seed[0] == wp[10] && wk.sk[0][0] == wp[42]);
         wp[9] = 2;
         rejected(wp, wots_private);
         for (const bool pub : {false, true}) {
@@ -68,18 +78,18 @@ int main() {
             data[8] = 8;
             rejected(data, roundtrip);
         }
-        // Height 2 gives four leaves and seven nodes (node zero is not serialized).
+        // Altura 2: quatro folhas e sete nós; o nó zero não é gravado.
         auto mp = fixture("MERPRV01", 14 + 4 * (32 + chains * 32) + 7 * 32, 14);
         mp[8] = w; mp[9] = 2; mp[13] = 1;
         auto merkle_private = [](const Bytes& b) { return encode_merkle_private(decode_merkle_private(b)); };
         check_record(mp, merkle_private);
         const auto mk = decode_merkle_private(mp);
-        assert(mk.next_index == 1 && mk.leaves[0].used && !mk.leaves[1].used);
-        assert(mk.leaves[0].pub_seed[0] == mp[14] && mk.leaves[0].sk[0][0] == mp[46]);
-        assert(mk.nodes[1][0] == mp[14 + 4 * (32 + chains * 32)]);
-        mp[13] = 4; // Exhausted keys are still valid files.
-        assert(decode_merkle_private(mp).next_index == 4);
-        mp[10] = 1; // Big endian: this is far beyond four leaves.
+        CHECK(mk.next_index == 1 && mk.leaves[0].used && !mk.leaves[1].used);
+        CHECK(mk.leaves[0].pub_seed[0] == mp[14] && mk.leaves[0].sk[0][0] == mp[46]);
+        CHECK(mk.nodes[1][0] == mp[14 + 4 * (32 + chains * 32)]);
+        mp[13] = 4; // Uma chave esgotada ainda é um arquivo válido.
+        CHECK(decode_merkle_private(mp).next_index == 4);
+        mp[10] = 1; // Em big endian, esse valor ultrapassa as quatro folhas.
         rejected(mp, merkle_private);
         for (const bool pub : {false, true}) {
             auto data = fixture(pub ? "MERPUB01" : "MERSIG01", pub ? 42 : 46 + chains * 32 + 64, pub ? 10 : 14);
@@ -87,9 +97,9 @@ int main() {
             if (!pub) {
                 data[13] = 3;
                 const auto sig = decode_merkle_signature(data);
-                assert(sig.leaf_index == 3 && sig.pub_seed[0] == data[14]);
-                assert(sig.wots_sig.reveal[0][0] == data[46]);
-                assert(sig.auth_path[0][0] == data[46 + chains * 32]);
+                CHECK(sig.leaf_index == 3 && sig.pub_seed[0] == data[14]);
+                CHECK(sig.wots_sig.reveal[0][0] == data[46]);
+                CHECK(sig.auth_path[0][0] == data[46 + chains * 32]);
             }
             std::function<Bytes(const Bytes&)> roundtrip = [pub](const Bytes& b) {
                 if (pub) return encode_merkle_public(decode_merkle_public(b));
@@ -104,4 +114,6 @@ int main() {
             rejected(data, roundtrip);
         }
     }
+    if (failures == 0) std::puts("test_serialization: OK");
+    return failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
