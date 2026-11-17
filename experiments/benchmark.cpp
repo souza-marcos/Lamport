@@ -9,10 +9,7 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 using Bytes = std::vector<uint8_t>;
-namespace lamport = lamport_sig::schemes::lamport;
-namespace wots = lamport_sig::schemes::wots;
-namespace merkle = lamport_sig::schemes::merkle;
-using namespace lamport_sig::serialization;
+
 constexpr int kRuns = 10;
 
 double milliseconds(Clock::time_point start, Clock::time_point end) {

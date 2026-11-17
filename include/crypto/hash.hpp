@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <vector>
 
-namespace lamport_sig::crypto {
 
 // Representação comum de um digest SHA-256: 32 bytes.
 using Hash256 = std::array<uint8_t, 32>;
@@ -23,4 +22,3 @@ enum class Domain : uint8_t {
 // SHA-256(domain || data).
 Hash256 sha256_domain(Domain domain, const std::vector<uint8_t>& data);
 
-}  // namespace lamport_sig::crypto

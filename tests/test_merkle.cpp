@@ -5,7 +5,7 @@
 #include "common/errors.hpp"
 #include "schemes/merkle.hpp"
 
-using namespace lamport_sig::schemes::merkle;
+using namespace merkle;
 
 static int failures = 0;
 #define CHECK(cond)                                                                \
@@ -42,7 +42,7 @@ int main() {
         CHECK(keys.priv.next_index == 4);
         bool exhausted = false;
         try { sign(keys.priv, {'x'}); }
-        catch (const lamport_sig::KeyAlreadyUsedError&) { exhausted = true; }
+        catch (const KeyAlreadyUsedError&) { exhausted = true; }
         CHECK(exhausted);
         auto other = keygen(w, 1);
         CHECK(other.pub.root != keys.pub.root);

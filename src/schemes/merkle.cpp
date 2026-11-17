@@ -4,7 +4,7 @@
 
 #include "common/errors.hpp"
 
-namespace lamport_sig::schemes::merkle {
+namespace merkle {
 
 namespace {
 
@@ -15,7 +15,7 @@ Hash256 leaf_hash(const wots::PublicKey& key) {
     data.insert(data.end(), key.pub_seed.begin(), key.pub_seed.end());
     for (const auto& element : key.pk)
         data.insert(data.end(), element.begin(), element.end());
-    return crypto::sha256_domain(crypto::Domain::Leaf, data);
+    return sha256_domain(Domain::Leaf, data);
 }
 
 Hash256 node_hash(const Hash256& left, const Hash256& right) {
@@ -23,7 +23,7 @@ Hash256 node_hash(const Hash256& left, const Hash256& right) {
     data.reserve(64);
     data.insert(data.end(), left.begin(), left.end());
     data.insert(data.end(), right.begin(), right.end());
-    return crypto::sha256_domain(crypto::Domain::Node, data);
+    return sha256_domain(Domain::Node, data);
 }
 
 }  // namespace
@@ -91,4 +91,4 @@ bool verify(const PublicKey& pub, const std::vector<uint8_t>& message, const Sig
     return value == pub.root;
 }
 
-}  // namespace lamport_sig::schemes::merkle
+}  // namespace merkle

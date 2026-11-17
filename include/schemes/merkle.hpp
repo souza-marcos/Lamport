@@ -5,9 +5,8 @@
 
 #include "schemes/wots.hpp"
 
-namespace lamport_sig::schemes::merkle {
+namespace merkle {
 
-using crypto::Hash256;
 
 struct PrivateKey {
     uint8_t w = 0;
@@ -38,4 +37,4 @@ KeyPair keygen(uint8_t w, uint8_t height);
 Signature sign(PrivateKey& key, const std::vector<uint8_t>& message);
 bool verify(const PublicKey& pub, const std::vector<uint8_t>& message, const Signature& sig);
 
-}  // namespace lamport_sig::schemes::merkle
+}  // namespace merkle

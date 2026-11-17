@@ -6,23 +6,29 @@
 
 #include "crypto/hash.hpp"
 
-namespace lamport_sig::schemes::lamport {
+namespace lamport {
 
-using crypto::Hash256;
 
 constexpr size_t kBits = 256;
+
+
+// 2 chaves para cada posição (bit 0 e bit 1).
 using ElementPairs = std::array<std::array<Hash256, 2>, kBits>;  // [posição][bit]
 
-struct PrivateKey {
+struct PrivateKey {         
     ElementPairs sk{};   // s_{i,0}, s_{i,1}
     bool used = false;   // chave de uso único: true depois de assinar
 };
+
 struct PublicKey {
     ElementPairs pk{};   // H(s_{i,0}), H(s_{i,1})
 };
+
+// A assinatura consiste então de um Hash para cada posição. 
 struct Signature {
     std::array<Hash256, kBits> reveal{};  // s_{i, m_i}
 };
+
 struct KeyPair {
     PrivateKey priv;
     PublicKey pub;
@@ -37,9 +43,4 @@ Signature sign(PrivateKey& key, const std::vector<uint8_t>& message);
 
 bool verify(const PublicKey& pub, const std::vector<uint8_t>& message, const Signature& sig);
 
-namespace detail {
-// Assinatura "crua": não verifica nem altera `used`. Existe somente para a demonstração.
-Signature sign_raw(const PrivateKey& key, const Hash256& message_digest);
-}  // namespace detail
-
-}  // namespace lamport_sig::schemes::lamport
+}  // namespace lamport

@@ -3,10 +3,6 @@
 #include <algorithm>
 #include "common/errors.hpp"
 
-namespace lamport_sig::serialization {
-namespace lamport = schemes::lamport;
-namespace wots = schemes::wots;
-namespace merkle = schemes::merkle;
 
 namespace {
 
@@ -18,11 +14,11 @@ void check_magic(const Bytes& data, const char* magic) {
         throw FormatError("tipo ou versão de arquivo inválida");
 }
 
-void append_hash(Bytes& data, const crypto::Hash256& hash) {
+void append_hash(Bytes& data, const Hash256& hash) {
     data.insert(data.end(), hash.begin(), hash.end());
 }
 
-void load_hash(const Bytes& data, size_t& offset, crypto::Hash256& hash) {
+void load_hash(const Bytes& data, size_t& offset, Hash256& hash) {
     std::copy_n(data.begin() + offset, hash.size(), hash.begin());
     offset += hash.size();
 }
@@ -58,9 +54,9 @@ Bytes encode_private(const lamport::PrivateKey& key) {
 lamport::PrivateKey decode_private(const Bytes& data) {
     check_size(data, kPrivateSize);
     check_magic(data, "LAMPRV01");
-    if (data[kLamportUsedOffset] > 1) throw FormatError("estado de chave inválido");
+    if (data[kMagicSize] > 1) throw FormatError("estado de chave inválido");
     lamport::PrivateKey key;
-    key.used = data[kLamportUsedOffset] == 1;
+    key.used = data[kMagicSize] == 1;
     size_t offset = kLamportPrivateHeaderSize;
     for (auto& pair : key.sk)
         for (auto& hash : pair) load_hash(data, offset, hash);
@@ -111,10 +107,10 @@ Bytes encode_wots_private(const wots::PrivateKey& key) {
 wots::PrivateKey decode_wots_private(const Bytes& data) {
     check_wots_header(data, "WOTPRV01");
     check_size(data, kWotsPrivateBase + wots::chain_count(data[kWOffset]) * kHashSize);
-    if (data[kWotsUsedOffset] > 1) throw FormatError("estado de chave W-OTS+ inválido");
+    if (data[kWotsHeaderSize] > 1) throw FormatError("estado de chave W-OTS+ inválido");
     wots::PrivateKey key;
     key.w = data[kWOffset];
-    key.used = data[kWotsUsedOffset] == 1;
+    key.used = data[kWotsHeaderSize] == 1;
     size_t offset = kWotsPrivateHeaderSize;
     load_hash(data, offset, key.pub_seed);
     key.sk.resize(wots::chain_count(key.w));
@@ -160,7 +156,7 @@ wots::Signature decode_wots_signature(const Bytes& data) {
     return sig;
 }
 
-void append_u32(Bytes& data, uint32_t value) {
+static void append_u32(Bytes& data, uint32_t value) {
     for (int shift = 24; shift >= 0; shift -= 8)
         data.push_back(static_cast<uint8_t>(value >> shift));
 }
@@ -261,5 +257,3 @@ merkle::Signature decode_merkle_signature(const Bytes& data) {
     for (auto& hash : sig.auth_path) load_hash(data, offset, hash);
     return sig;
 }
-
-}  // namespace lamport_sig::serialization

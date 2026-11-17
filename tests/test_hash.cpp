@@ -9,7 +9,7 @@
 #include "crypto/hash.hpp"
 #include "crypto/random.hpp"
 
-using namespace lamport_sig::crypto;
+
 
 static int failures = 0;
 #define CHECK(cond)                                                                \

@@ -3,7 +3,6 @@
 #include <openssl/evp.h>
 #include <stdexcept>
 
-namespace lamport_sig::crypto {
 
 Hash256 sha256(const uint8_t* data, size_t size) {
     Hash256 out{};
@@ -26,4 +25,3 @@ Hash256 sha256_domain(Domain domain, const std::vector<uint8_t>& data) {
     return sha256(buf);
 }
 
-}  // namespace lamport_sig::crypto

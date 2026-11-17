@@ -5,7 +5,7 @@
 #include "common/errors.hpp"
 #include "schemes/lamport.hpp"
 
-using namespace lamport_sig::schemes::lamport;
+using namespace lamport;
 
 static int failures = 0;
 #define CHECK(cond)                                                                \
@@ -17,7 +17,7 @@ static int failures = 0;
     } while (0)
 
 int main() {
-    lamport_sig::crypto::Hash256 bits{};
+    Hash256 bits{};
     bits[0] = 0x80;
     bits[31] = 0x01;
     CHECK(digest_bit(bits, 0) == 1);
@@ -26,13 +26,13 @@ int main() {
 
     auto keys = keygen();
     const std::vector<uint8_t> message{'m', 'e', 's', 's', 'a', 'g', 'e'};
-    const auto digest = lamport_sig::crypto::sha256_domain(
-        lamport_sig::crypto::Domain::Message, message);
+    const auto digest = sha256_domain(
+        Domain::Message, message);
     for (size_t i = 0; i < kBits; ++i) {
         for (size_t bit = 0; bit < 2; ++bit) {
             const auto& secret = keys.priv.sk[i][bit];
-            CHECK(keys.pub.pk[i][bit] == lamport_sig::crypto::sha256_domain(
-                lamport_sig::crypto::Domain::Secret, {secret.begin(), secret.end()}));
+            CHECK(keys.pub.pk[i][bit] == sha256_domain(
+                Domain::Secret, {secret.begin(), secret.end()}));
         }
     }
 
@@ -56,7 +56,7 @@ int main() {
     bool rejected_reuse = false;
     try {
         sign(keys.priv, changed_message);
-    } catch (const lamport_sig::KeyAlreadyUsedError&) {
+    } catch (const KeyAlreadyUsedError&) {
         rejected_reuse = true;
     }
     CHECK(rejected_reuse);

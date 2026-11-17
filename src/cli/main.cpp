@@ -23,12 +23,6 @@
 
 namespace {
 
-using namespace lamport_sig;
-namespace lamport = schemes::lamport;
-namespace merkle = schemes::merkle;
-namespace wots = schemes::wots;
-using namespace serialization;
-
 struct File {
     int fd;
     explicit File(const std::string& path, int flags, mode_t mode = 0)
@@ -228,8 +222,7 @@ void lamport_sign(const std::map<std::string, std::string>& options) {
     auto private_data = read_exact(key_file.fd, kPrivateSize);
     auto key = decode_private(private_data);
     const auto signature = lamport::sign(key, message);
-    private_data[kLamportUsedOffset] = 1;
-    persist_signature(key_path, private_data, output, encode_signature(signature));
+    persist_signature(key_path, encode_private(key), output, encode_signature(signature));
 }
 
 int lamport_verify(const std::map<std::string, std::string>& options) {
@@ -262,8 +255,7 @@ void wots_sign(const std::map<std::string, std::string>& options) {
     if (options.count("--w") && parse_w(require(options, "--w")) != key.w)
         throw UsageError("--w incompatível com a chave");
     const auto signature = wots::sign(key, message);
-    private_data[kWotsUsedOffset] = 1;
-    persist_signature(key_path, private_data, output, encode_wots_signature(signature));
+    persist_signature(key_path, encode_wots_private(key), output, encode_wots_signature(signature));
 }
 
 int wots_verify(const std::map<std::string, std::string>& options) {
@@ -307,10 +299,7 @@ void merkle_sign(const std::map<std::string, std::string>& options) {
     auto private_data = read_exact(key_file.fd, merkle_private_size(header[kWOffset], header[kHeightOffset]));
     auto key = decode_merkle_private(private_data);
     const auto sig = merkle::sign(key, message);
-    Bytes index;
-    append_u32(index, key.next_index);
-    std::copy(index.begin(), index.end(), private_data.begin() + kMerkleIndexOffset);
-    persist_signature(key_path, private_data, output, encode_merkle_signature(sig));
+    persist_signature(key_path, encode_merkle_private(key), output, encode_merkle_signature(sig));
 }
 
 int merkle_verify(const std::map<std::string, std::string>& options) {
@@ -328,10 +317,13 @@ void demo_reuse() {
     const auto keys = lamport::keygen();
     const Bytes first{'m', 'e', 'n', 's', 'a', 'g', 'e', 'm', ' ', '1'};
     const Bytes second{'m', 'e', 'n', 's', 'a', 'g', 'e', 'm', ' ', '2'};
-    const auto first_digest = crypto::sha256_domain(crypto::Domain::Message, first);
-    const auto second_digest = crypto::sha256_domain(crypto::Domain::Message, second);
-    const auto first_sig = lamport::detail::sign_raw(keys.priv, first_digest);
-    const auto second_sig = lamport::detail::sign_raw(keys.priv, second_digest);
+    const auto first_digest = sha256_domain(Domain::Message, first);
+    const auto second_digest = sha256_domain(Domain::Message, second);
+    // Copiar a chave contorna a proteção de uso único para demonstrar o risco.
+    auto first_key = keys.priv;
+    auto second_key = keys.priv;
+    const auto first_sig = lamport::sign(first_key, first);
+    const auto second_sig = lamport::sign(second_key, second);
     size_t exposed_pairs = 0;
     for (size_t i = 0; i < lamport::kBits; ++i) {
         if (lamport::digest_bit(first_digest, i) != lamport::digest_bit(second_digest, i)) {
@@ -347,11 +339,11 @@ void demo_reuse() {
 
 int main(int argc, char** argv) {
     try {
-        if (argc < 2) throw lamport_sig::UsageError("use keygen, sign, verify ou demo");
+        if (argc < 2) throw UsageError("use keygen, sign, verify ou demo");
         const std::string command = argv[1];
         if (command == "demo") {
             if (argc != 3 || std::string(argv[2]) != "lamport-reuse")
-                throw lamport_sig::UsageError("use demo lamport-reuse");
+                throw UsageError("use demo lamport-reuse");
             demo_reuse();
             return 0;
         }
@@ -366,7 +358,7 @@ int main(int argc, char** argv) {
         else if (command == "verify" && scheme == "lamport") return lamport_verify(options);
         else if (command == "verify" && scheme == "wots+") return wots_verify(options);
         else if (command == "verify" && scheme == "merkle") return merkle_verify(options);
-        else throw lamport_sig::UsageError("comando desconhecido: " + command);
+        else throw UsageError("comando desconhecido: " + command);
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "erro: " << error.what() << '\n';

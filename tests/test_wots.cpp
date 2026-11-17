@@ -6,7 +6,7 @@
 #include "common/errors.hpp"
 #include "schemes/wots.hpp"
 
-using namespace lamport_sig::schemes::wots;
+using namespace wots;
 
 static int failures = 0;
 #define CHECK(cond)                                                                \
@@ -17,7 +17,7 @@ static int failures = 0;
         }                                                                          \
     } while (0)
 
-std::string hex(const lamport_sig::crypto::Hash256& hash) {
+std::string hex(const Hash256& hash) {
     const char* digits = "0123456789abcdef";
     std::string result;
     for (uint8_t byte : hash) {
@@ -33,7 +33,7 @@ void check_fixed_vector(uint8_t w) {
     PrivateKey key;
     key.w = w;
     for (size_t i = 0; i < key.pub_seed.size(); ++i) key.pub_seed[i] = i;
-    lamport_sig::crypto::Hash256 secret{};
+    Hash256 secret{};
     secret.fill(0x42);
     key.sk.assign(chain_count(w), secret);
     const std::vector<uint8_t> message{'a', 'b', 'c'};
@@ -57,7 +57,7 @@ int main() {
     for (uint8_t w : {4, 16}) {
         check_fixed_vector(w);
         CHECK(chain_count(w) == (w == 4 ? 133u : 67u));
-        lamport_sig::crypto::Hash256 zero{};
+        Hash256 zero{};
         const auto digits = message_digits(zero, w);
         CHECK(digits.size() == chain_count(w));
         CHECK(digits[0] == 0);
@@ -87,7 +87,7 @@ int main() {
 
         bool rejected_reuse = false;
         try { sign(keys.priv, message); }
-        catch (const lamport_sig::KeyAlreadyUsedError&) { rejected_reuse = true; }
+        catch (const KeyAlreadyUsedError&) { rejected_reuse = true; }
         CHECK(rejected_reuse);
     }
     if (failures == 0) std::puts("test_wots: OK");

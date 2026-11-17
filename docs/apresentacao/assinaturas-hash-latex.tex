@@ -1,0 +1,216 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazil]{babel}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
+\definecolor{navy}{HTML}{18344A}
+\definecolor{teal}{HTML}{087F78}
+\definecolor{pale}{HTML}{EAF5F3}
+\definecolor{light}{HTML}{F6F8FA}
+\definecolor{muted}{HTML}{516476}
+\definecolor{warning}{HTML}{A13D32}
+\setbeamercolor{normal text}{fg=navy,bg=white}
+\setbeamercolor{frametitle}{fg=navy,bg=white}
+\setbeamercolor{title}{fg=navy}
+\setbeamercolor{structure}{fg=teal}
+\setbeamercolor{block title}{fg=navy,bg=pale}
+\setbeamercolor{block body}{fg=navy,bg=light}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\color{teal}\small$\blacktriangleright$}
+\setbeamertemplate{frametitle}{\vspace{0.22cm}\insertframetitle\par\vspace{0.06cm}{\color{teal}\rule{0.9cm}{1.4pt}}}
+\setbeamertemplate{footline}{\leavevmode\hbox to \paperwidth{\hspace{0.5cm}\color{muted}\scriptsize Sigtool \quad | \quad Assinaturas baseadas em hash\hfill\insertframenumber\,/\,\inserttotalframenumber\hspace{0.5cm}}\vspace{0.25cm}}
+\setbeamersize{text margin left=0.8cm,text margin right=0.8cm}
+\setlength{\parskip}{0.5em}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\src}[1]{\vfill{\scriptsize\color{muted} Código: \texttt{#1}}}
+\title{Assinaturas digitais\\baseadas em hash}
+\subtitle{Lamport, W-OTS+ e árvore de Merkle no sigtool}
+\date{}
+\begin{document}
+
+\begin{frame}[plain]
+  \vspace{0.7cm}
+  {\color{teal}\large CRIPTOGRAFIA \quad / \quad SIGTOOL}\par\vspace{0.5cm}
+  {\Huge\bfseries Assinaturas digitais\\baseadas em hash}\par\vspace{0.55cm}
+  {\Large Lamport \quad $\rightarrow$ \quad W-OTS+ \quad $\rightarrow$ \quad Merkle}\par\vspace{0.4cm}
+  {\color{muted} Estruturas, implementação, benefícios e segurança}
+\end{frame}
+
+\begin{frame}{Três construções, três papéis}
+\begin{columns}[T,onlytextwidth]
+\column{.31\textwidth}\begin{block}{1. Lamport OTS}Pares de segredos para os bits do resumo.\\\textbf{Uma assinatura por chave.}\end{block}
+\column{.31\textwidth}\begin{block}{2. W-OTS+}Cadeias de hash compactam a assinatura.\\\textbf{Uma assinatura por chave.}\end{block}
+\column{.31\textwidth}\begin{block}{3. Merkle}Uma árvore reúne várias chaves W-OTS+.\\\textbf{Uma folha por assinatura.}\end{block}
+\end{columns}
+\vspace{0.45cm}
+SHA-256 produz resumos de 32 bytes. A autenticidade da chave pública depende de um canal de confiança.
+\end{frame}
+
+\begin{frame}{Lamport: estruturas de dados}
+Para cada um dos 256 bits, há dois segredos independentes:
+\[
+\underbrace{(s_{0,0},s_{0,1}),\ldots,(s_{255,0},s_{255,1})}_{\text{chave privada}}
+\quad\longrightarrow\quad
+\underbrace{(H(s_{i,0}),H(s_{i,1}))}_{\text{elementos públicos}}
+\]
+\begin{itemize}
+\item \code{PrivateKey}: 256 pares de segredos e estado \code{used}.
+\item \code{PublicKey}: 256 pares de hashes; \code{Signature}: 256 segredos revelados.
+\item Cada segredo e cada hash ocupa 32 bytes; \code{keygen} usa aleatoriedade segura.
+\end{itemize}
+\src{include/schemes/lamport.hpp \quad e \quad src/schemes/lamport.cpp}
+\end{frame}
+
+\begin{frame}{Lamport: assinatura e verificação}
+Para um resumo iniciado por \textbf{101}, selecionamos:
+\begin{center}\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lccc}\toprule
+Posição & 0 & 1 & 2 \\\midrule
+Bit & 1 & 0 & 1 \\
+Assinatura & $s_{0,1}$ & $s_{1,0}$ & $s_{2,1}$ \\
+Verificação & $H(s_{0,1})$ & $H(s_{1,0})$ & $H(s_{2,1})$ \\\bottomrule
+\end{tabular}\end{center}
+\code{sign} seleciona os 256 segredos; \code{verify} compara os hashes com as posições esperadas da chave pública.
+\end{frame}
+
+\begin{frame}{Lamport: detalhes de implementação}
+\begin{itemize}
+\item Resumo da mensagem: $\mathrm{SHA256}(\texttt{0x00}\mathbin{\|}m)$.
+\item Elemento público: $\mathrm{SHA256}(\texttt{0x01}\mathbin{\|}s)$; os prefixos separam os usos do hash.
+\item \code{digest\_bit}: escolhe o byte por $i/8$ e lê seus bits da esquerda para a direita.
+\item Após assinar, \code{used = true}; uma nova chamada com a mesma chave é recusada.
+\end{itemize}
+\begin{block}{Dados criptográficos}Privada: 16.384 B \quad Pública: 16.384 B \quad Assinatura: 8.192 B\end{block}
+\src{src/schemes/lamport.cpp}
+\end{frame}
+
+\begin{frame}{Lamport: o que compromete a segurança?}
+\begin{itemize}
+\item \textbf{Reutilização:} mensagens diferentes podem revelar os dois segredos de uma posição, dando mais opções ao atacante.
+\item \textbf{Cópia antiga:} restaurar um arquivo anterior pode fazer a chave parecer não usada.
+\item \textbf{Segredos expostos ou previsíveis:} possibilitam gerar assinaturas indevidas.
+\end{itemize}
+\vspace{0.25cm}
+\begin{block}{Condição de uso}Uma assinatura por par de chaves; o estado precisa acompanhar cada cópia da chave.\end{block}
+\end{frame}
+
+\begin{frame}{W-OTS+: cadeias no lugar de pares}
+\begin{center}
+\begin{tikzpicture}[node distance=1.45cm,box/.style={draw=teal,rounded corners,fill=pale,minimum width=1.55cm,minimum height=.8cm},>=Stealth]
+\node[box] (a) {$x_0$}; \node[box,right=of a] (b) {$x_1$}; \node[box,right=of b] (c) {$x_2$}; \node[box,right=of c] (d) {$x_3$};
+\draw[->,thick,teal] (a)--(b); \draw[->,thick,teal] (b)--(c); \draw[->,thick,teal] (c)--(d);
+\node[below=.15cm of a] {segredo}; \node[below=.15cm of c] {assinatura}; \node[below=.15cm of d] {público};
+\end{tikzpicture}
+\end{center}
+\vspace{0.3cm}
+Com $w=4$ e dígito \textbf{2}, \code{sign} revela $x_2$; \code{verify} avança uma etapa e compara o resultado com $x_3$.
+
+Cada cadeia usa um segredo próprio. O checksum também ocupa cadeias.
+\end{frame}
+
+\begin{frame}{W-OTS+: implementação no sigtool}
+\begin{itemize}
+\item \code{message\_digits} converte SHA-256 da mensagem em base $w$ e adiciona o checksum $\sum_i(w-1-d_i)$.
+\item \code{chain} usa o índice da cadeia e o passo em um endereço de 32 bytes; a semente pública deriva chave e máscara para cada passo.
+\item \code{keygen} percorre $w-1$ passos para produzir cada elemento público.
+\item \code{sign} avança $d_i$ passos; \code{recover\_public} completa os $w-1-d_i$ restantes.
+\end{itemize}
+\src{src/schemes/wots.cpp}
+\end{frame}
+
+\begin{frame}{W-OTS+: ganho em relação a Lamport}
+\begin{center}\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{lrrr}\toprule
+ & Lamport & W-OTS+ $w=4$ & W-OTS+ $w=16$ \\\midrule
+Elementos na assinatura & 256 & 133 & 67 \\
+Dados da assinatura & 8.192 B & 4.256 B & 2.144 B \\
+Mensagens por chave & 1 & 1 & 1 \\\bottomrule
+\end{tabular}\end{center}
+\textbf{Benefício:} assinaturas menores. \quad \textbf{Custo:} mais passos de hash.
+
+Os tamanhos excluem cabeçalhos. O projeto oferece $w=4$ e $w=16$.
+\end{frame}
+
+\begin{frame}{W-OTS+: limites de segurança}
+\begin{itemize}
+\item A reutilização revela pontos adicionais das cadeias e compromete a garantia de uso único.
+\item O checksum protege a relação entre dígitos; não autoriza assinar duas mensagens com a mesma chave.
+\item A semente é pública; os valores iniciais das cadeias são secretos.
+\item \code{used} protege o fluxo normal; restauração de cópia antiga pode reativar a chave.
+\end{itemize}
+\src{src/schemes/wots.cpp \quad e \quad docs/wots.md}
+\end{frame}
+
+\begin{frame}{Merkle: várias chaves sob uma raiz}
+\begin{columns}[T,onlytextwidth]
+\column{.52\textwidth}
+\begin{center}\begin{tikzpicture}[every node/.style={draw=teal,rounded corners,fill=pale,minimum width=.9cm,minimum height=.6cm},level distance=1.1cm,level 1/.style={sibling distance=3.2cm},level 2/.style={sibling distance=1.45cm},edge from parent/.style={draw=teal,thick}]
+\node {raiz} child {node {$N_{01}$} child {node {$L_0$}} child {node {$L_1$}}} child {node {$N_{23}$} child {node {$L_2$}} child {node {$L_3$}}};
+\end{tikzpicture}\end{center}
+\column{.46\textwidth}
+\begin{itemize}
+\item Cada folha resume uma chave pública W-OTS+.
+\item Cada nó interno resume os dois filhos.
+\item Altura $h$: $2^h$ folhas e até $2^h$ assinaturas.
+\end{itemize}
+\end{columns}
+\vspace{0.25cm}\textbf{Benefício:} uma única raiz pública autentica várias chaves de uso único.
+\end{frame}
+
+\begin{frame}{Merkle: exemplo com a folha $L_2$}
+\begin{enumerate}
+\item \code{sign} usa a chave W-OTS+ da folha 2 e inclui o caminho $[L_3,N_{01}]$.
+\item \code{verify} recupera a chave pública W-OTS+ e calcula $L_2$.
+\item Calcula $N_{23}=H(L_2,L_3)$ e a raiz $H(N_{01},N_{23})$.
+\item Compara a raiz calculada com a chave pública confiável.
+\end{enumerate}
+\vspace{0.15cm}
+\begin{block}{Dados adicionais}Índice da folha, semente pública e $h$ hashes irmãos acompanham a assinatura W-OTS+.\end{block}
+\end{frame}
+
+\begin{frame}{Merkle: detalhes de implementação}
+\begin{itemize}
+\item \code{PrivateKey}: chaves W-OTS+ das folhas, nós da árvore e \code{next\_index}.
+\item \code{PublicKey}: raiz, altura e parâmetro $w$. Alturas aceitas: 1 a 8.
+\item Folha: hash com domínio \code{0x02}; nó interno: domínio \code{0x03} e filhos em ordem.
+\item Nós são armazenados como heap binário: raiz em 1, filhos em $2i$ e $2i+1$; XOR do índice com 1 encontra o irmão.
+\end{itemize}
+\src{include/schemes/merkle.hpp \quad e \quad src/schemes/merkle.cpp}
+\end{frame}
+
+\begin{frame}{Merkle: segurança e estado}
+\begin{itemize}
+\item Uma folha W-OTS+ não pode ser reutilizada; \code{next\_index} avança após a assinatura.
+\item A CLI usa \code{flock} e persiste o estado atualizado antes de gravar a assinatura.
+\item Backup antigo, cópias em máquinas diferentes ou aliases podem contornar o controle local.
+\item A árvore tem capacidade finita; depois da última folha, a chave se esgota.
+\end{itemize}
+\begin{block}{Escopo}A construção do projeto é didática e não é uma implementação completa de XMSS.\end{block}
+\end{frame}
+
+\begin{frame}{Comparação e riscos}
+\begin{center}\renewcommand{\arraystretch}{1.4}\small
+\begin{tabular}{llll}\toprule
+ & Lamport & W-OTS+ & Merkle + W-OTS+ \\\midrule
+Estrutura & pares & cadeias & árvore de chaves \\
+Assinaturas & 1 & 1 & até $2^h$ \\
+Estado & \code{used} & \code{used} & \code{next\_index} \\
+Risco de reuso & chave & chave & folha \\\bottomrule
+\end{tabular}\end{center}
+\vspace{0.2cm}
+Em todos os casos, proteja os segredos e autentique a chave pública. A prevenção de rollback e a cifragem autenticada da chave são propostas para o projeto.
+\end{frame}
+
+\begin{frame}{Referências e código}
+\begin{itemize}
+\item Projeto: \code{docs/lamport.md}, \code{docs/wots.md}, \code{docs/merkle.md} e \code{docs/melhorias\_seguranca.md}.
+\item Implementações: \code{src/schemes/lamport.cpp}, \code{wots.cpp} e \code{merkle.cpp}.
+\item \href{https://www.rfc-editor.org/rfc/rfc8391.html}{RFC 8391: WOTS+ e XMSS}.
+\item \href{https://csrc.nist.gov/pubs/sp/800/208/final}{NIST SP 800-208: assinaturas baseadas em hash com estado}.
+\item \href{https://www.rfc-editor.org/rfc/rfc10033.html}{RFC 10033: estado e backups}.
+\end{itemize}
+\end{frame}
+\end{document}

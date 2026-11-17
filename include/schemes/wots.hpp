@@ -5,9 +5,8 @@
 
 #include "crypto/hash.hpp"
 
-namespace lamport_sig::schemes::wots {
+namespace wots {
 
-using crypto::Hash256;
 
 struct PrivateKey {
     uint8_t w = 0;
@@ -37,4 +36,4 @@ PublicKey recover_public(const Hash256& pub_seed, const std::vector<uint8_t>& me
                          const Signature& sig);
 bool verify(const PublicKey& pub, const std::vector<uint8_t>& message, const Signature& sig);
 
-}  // namespace lamport_sig::schemes::wots
+}  // namespace wots

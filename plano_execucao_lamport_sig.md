@@ -15,7 +15,7 @@ Revisão em 11/11/2026, confrontando o código com `PropostaCriptografiaMarcosDa
 | Demonstração do risco de reutilizar Lamport | comando `demo lamport-reuse`, `docs/lamport.md` | Implementado; mostra segredos expostos, sem produzir uma falsificação completa |
 | Testes automatizados | seis testes registrados no CMake | Passavam, mas os asserts de serialização eram desativados em Release |
 | Comparação experimental | `experiments/benchmark.cpp` | Tamanhos e médias; Merkle somente com altura 4 |
-| Repositório GitHub e histórico Git | metadados indisponíveis neste ambiente | Não verificável |
+| Repositório GitHub e histórico Git | metadados indisponíveis no início da revisão | Histórico local criado posteriormente; publicação no GitHub não verificada |
 
 O núcleo proposto já existia. As lacunas locais eram a validade dos testes em Release, a comparação entre alturas diferentes, a documentação de entrega e trechos repetidos de infraestrutura.
 
@@ -76,27 +76,22 @@ Esse estado local não impede restauração de backups, cópias da chave ou aces
 | Ordem | Ação | Critério de conclusão | Resultado |
 |---|---|---|---|
 | 1 | Ler proposta, fontes e testes | Mapear todas as entregas e executar a versão recebida | Feito; seis testes passavam, com falha de cobertura em Release |
-| 2 | Registrar o estado inicial no Git | Identificar branch e criar commit das mudanças prévias | Impedido: `.git` vazio e somente leitura |
-| 3 | Criar branch separada | Criar `refactor/revisao-didatica` a partir da branch atual | Impedido pela ausência dos metadados Git |
+| 2 | Registrar o estado inicial no Git | Identificar branch e criar commit das mudanças prévias | Feito; commit `912113c` na `main` |
+| 3 | Criar branch separada | Criar `refactor/revisao-didatica` a partir da branch atual | Feito; branch criada a partir da `main` |
 | 4 | Limpar o projeto | Retirar artefatos regeneráveis e placeholders sem função | Feito; removidos `build/`, sete `.gitkeep` e `include/cli/`; atualizado `.gitignore` |
 | 5 | Refatorar para leitura didática | Funções diretas, sem duplicação evitável e preservando os formatos | Feito; hash em uma chamada, gravação comum dos pares e leitura W-OTS+ reaproveitada |
 | 6 | Corrigir e ampliar validação | Testes ativos em Release e referência independente para W-OTS+ | Feito; CHECK explícito, vetores fixos e mais casos de CLI |
 | 7 | Completar experimentos | Comparar alturas e preservar amostras e tamanhos reais | Feito; 90 amostras, w=4/16, h=2/4/6, tamanhos via serialização |
 | 8 | Consolidar documentação | Teoria, comandos reproduzíveis, resultados e pendências | Feito neste documento, README e relatório experimental |
-| 9 | Validar entrega e fazer commit final | Compilar, executar testes e revisar alterações | Validação local feita; commit impedido pelo ambiente |
+| 9 | Validar entrega e fazer commit final | Compilar, executar testes e revisar alterações | Feito; validação local e commit `5cf07c7` na branch da revisão |
 
 A refatoração mantém structs, arrays, vetores, laços e funções simples. Preserva o pequeno objeto que fecha arquivos ao sair do escopo, os bloqueios, as validações e a persistência: eles têm uma função concreta no projeto.
 
 ## 4. O que ainda falta
 
-**Para concluir os pedidos de Git:** disponibilizar os metadados reais de `.git`, identificar a branch atual, registrar o estado inicial preservado, criar a branch separada e commitar as alterações desta revisão. Não foram criados commits nem branches fictícios. Uma cópia dos fontes recebidos está em `/tmp/sigtool-before-review/source.tar`, temporária e externa ao projeto; ela exclui build e diretórios de configuração/metadados.
+**Pedidos de Git concluídos:** o estado inicial foi registrado na `main` pelo commit `912113c` (`Registra implementação inicial de Lamport, W-OTS+ e Merkle`). A branch `refactor/revisao-didatica` foi criada dessa base e recebeu o commit `5cf07c7` (`Refatora ferramenta didática e completa avaliação experimental`). O histórico e a branch foram conferidos após a execução do script no terminal do usuário. Na conferência anterior a esta atualização documental, o diretório de trabalho estava limpo.
 
-Com o repositório real acessível, o fluxo planejado é:
-
-1. Conferir `git status`, branch, histórico e diferenças em relação ao snapshot; preservar as mudanças prévias do usuário num commit na branch original.
-2. Executar `git switch -c refactor/revisao-didatica` nessa base.
-3. Aplicar as alterações revisadas, conferir o diff, executar os testes e fazer o commit `Refatora ferramenta didática e completa avaliação experimental`.
-4. Verificar o remoto e a disponibilização no GitHub, entrega prevista pela proposta. Nenhum envio ao remoto foi executado nesta revisão.
+A publicação no GitHub é uma entrega prevista pela proposta original, mas não foi executada nem verificada nesta revisão local. Uma cópia temporária dos fontes recebidos está em `/tmp/sigtool-before-review/source.tar`; ela exclui build e diretórios de configuração/metadados. Os commits locais agora preservam o estado inicial e a revisão.
 
 **Implementação local da proposta:** nenhuma funcionalidade principal identificada ficou por implementar após esta revisão. Os seis testes e os experimentos são evidências funcionais, não uma auditoria ou prova completa de segurança. Ensaios com todas as alturas até 8, testes de queda de energia, proteção contra rollback, XMSS completo e validação por outra biblioteca seriam extensões futuras, não requisitos incluídos no plano executado.
 

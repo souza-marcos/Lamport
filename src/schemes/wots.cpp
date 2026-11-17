@@ -6,7 +6,7 @@
 #include "common/errors.hpp"
 #include "crypto/random.hpp"
 
-namespace lamport_sig::schemes::wots {
+namespace wots {
 
 namespace {
 
@@ -19,7 +19,7 @@ int log_w(uint8_t w) {
 size_t checksum_digits(uint8_t w) { return w == 4 ? 5 : 3; }
 
 Hash256 random_hash() {
-    const auto bytes = crypto::secure_random(32);
+    const auto bytes = secure_random(32);
     Hash256 result{};
     std::copy(bytes.begin(), bytes.end(), result.begin());
     return result;
@@ -30,7 +30,7 @@ Hash256 keyed_hash(uint8_t domain, const Hash256& key, const uint8_t* input, siz
     data[31] = domain;
     data.insert(data.end(), key.begin(), key.end());
     data.insert(data.end(), input, input + length);
-    return crypto::sha256(data);
+    return sha256(data);
 }
 
 void put_u32(std::array<uint8_t, 32>& address, size_t offset, uint32_t value) {
@@ -103,7 +103,7 @@ KeyPair keygen(uint8_t w) {
 
 Signature sign(PrivateKey& key, const std::vector<uint8_t>& message) {
     if (key.used) throw KeyAlreadyUsedError("chave W-OTS+ já utilizada");
-    const auto digits = message_digits(crypto::sha256(message), key.w);
+    const auto digits = message_digits(sha256(message), key.w);
     if (key.sk.size() != digits.size()) throw FormatError("chave W-OTS+ inválida");
     Signature sig;
     sig.w = key.w;
@@ -121,7 +121,7 @@ PublicKey recover_public(const Hash256& pub_seed, const std::vector<uint8_t>& me
     PublicKey pub;
     pub.w = sig.w;
     pub.pub_seed = pub_seed;
-    const auto digits = message_digits(crypto::sha256(message), sig.w);
+    const auto digits = message_digits(sha256(message), sig.w);
     pub.pk.reserve(digits.size());
     for (size_t i = 0; i < digits.size(); ++i) {
         pub.pk.push_back(chain(sig.reveal[i], digits[i], sig.w - 1 - digits[i],
@@ -138,4 +138,4 @@ bool verify(const PublicKey& pub, const std::vector<uint8_t>& message, const Sig
     return recover_public(pub.pub_seed, message, sig).pk == pub.pk;
 }
 
-}  // namespace lamport_sig::schemes::wots
+}  // namespace wots

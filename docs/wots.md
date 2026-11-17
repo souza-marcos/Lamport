@@ -10,12 +10,29 @@ W-OTS+ é um esquema de assinatura de uso único com cadeias hash. Esta implemen
 
 Em cada passo, o endereço identifica a cadeia e a posição. `PRF` deriva uma chave e uma máscara da semente pública e desse endereço. A máscara é aplicada ao valor antes de `F`. Assim, passos distintos usam parâmetros distintos.
 
+### Exemplo de uma cadeia
+
+Com `w=4`, cada dígito do resumo vale de `0` a `3`. Para a cadeia de índice `0`, use o segredo inicial `x0 = 0x11 × 32` e a semente pública `0x22 × 32`. A notação indica 32 bytes iguais a `0x11` ou a `0x22`. Aplicando os passos da implementação, a cadeia fica assim (hashes abreviados a oito dígitos):
+
+| Posição | Valor |
+|---|---|
+| `x0` — segredo | `0x11 × 32` |
+| `x1` | `08e75077…` |
+| `x2` | `303a48c7…` |
+| `x3` — elemento público | `21170315…` |
+
+Se o dígito da mensagem nessa posição for `2`, `sign` inclui `x2` na assinatura. `verify` executa o passo restante e confere se o resultado é `x3`. Os outros dígitos seguem suas próprias cadeias; o checksum acrescenta cadeias que impedem alterar a assinatura apenas avançando os valores revelados. A comparação usa os 32 bytes completos. Os valores repetidos acima servem só para o exemplo; `keygen` sorteia os segredos e a semente.
+
 | Parâmetro | Dígitos da mensagem | Dígitos do checksum | Cadeias / elementos da assinatura | Dados da assinatura |
 |---|---:|---:|---:|---:|
 | `w=4` | 128 | 5 | 133 | 4.256 bytes |
 | `w=16` | 64 | 3 | 67 | 2.144 bytes |
 
 Os tamanhos da tabela excluem o identificador e o parâmetro do arquivo. A chave privada e a chave pública também guardam a semente de 32 bytes. A chave privada é de uso único; a CLI sincroniza e substitui o arquivo da chave privada com o estado consumido antes de gravar a assinatura.
+
+## Em relação ao Lamport
+
+Lamport guarda dois segredos para cada um dos 256 bits do resumo: 512 segredos e uma assinatura de 8.192 bytes. W-OTS+ usa 133 cadeias com `w=4` ou 67 com `w=16`; as assinaturas ocupam 4.256 ou 2.144 bytes. As chaves privada e pública também são menores: 4.288 bytes com `w=4` ou 2.176 bytes com `w=16`, incluindo a semente, contra 16.384 bytes em Lamport. A redução de tamanho custa mais cálculos de hash, pois gerar e verificar uma assinatura exige percorrer trechos das cadeias. Ambos os esquemas continuam limitados a uma mensagem por chave. Veja o [exemplo de Lamport](lamport.md).
 
 ## Uso
 

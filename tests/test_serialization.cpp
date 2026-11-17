@@ -5,9 +5,6 @@
 #include "common/errors.hpp"
 #include "serialization/formats.hpp"
 
-using namespace lamport_sig;
-using namespace serialization;
-
 static int failures = 0;
 #define CHECK(cond) \
     do { \
